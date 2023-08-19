@@ -1,0 +1,121 @@
+---
+- name: Install Flask and Webserver
+  hosts: all
+  become: true
+  
+  tasks:
+    - name: apt-get update
+      apt:
+        update_cache: yes
+      become: true
+    
+    - name: Install virtual environment
+      apt:
+        name: python3-venv
+        state: present
+      become: true
+
+    - name: Create production directory
+      file:
+        path: /home/ubuntu/production  
+        state: directory
+      become: true
+    
+    - name: Change directory
+      shell: cd /home/ubuntu/production  
+      args:
+        chdir: /home/ubuntu/production
+      become: true
+
+    - name: Clone the repository
+      git:
+        repo: https://github.com/jamesbarker15/flask-web-app.git
+        dest: /home/ubuntu/production/app
+        version: master  
+      become: true
+
+    - name: Create virtual environment
+      command: python3 -m venv /home/ubuntu/production/app/venv 
+      become: true
+
+    - name: Install pip
+      apt:
+        name: python3-pip
+        state: present
+      become: true
+
+    - name: Install Flask
+      pip:
+        name: Flask
+        state: present
+      become: true
+
+    - name: Install requirements.txt
+      pip:
+        requirements: /home/ubuntu/production/app/requirements.txt
+        state: present
+      become: true
+
+    - name: Copy file
+      copy:
+        src: keys.py
+        dest: /home/ubuntu/production/app/keys.py
+      become: true  
+
+    - name: Install Gunicorn
+      pip:
+        name: gunicorn
+        state: present
+      become: true
+
+    - name: Copy contents of service file
+      copy:
+        src: service_file
+        dest: /etc/systemd/system/production.service
+      become: true
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+      become: true
+    
+    - name: Start production service
+      systemd:
+        name: production
+        state: started
+        enabled: yes
+      become: true
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+      become: true
+
+    - name: Start Nginx service
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+      become: true
+
+    - name: Copy contents of default file
+      copy:
+        src: default
+        dest: /etc/nginx/sites-available/default
+      become: true
+
+    - name: Restart Nginx service
+      systemd:
+        name: nginx
+        state: restarted
+      become: true
+
+    - name: Run Gunicorn server
+      command: gunicorn -b 0.0.0.0:8000 app:app
+      args:
+        chdir: /home/ubuntu/production/app
+      async: 600  # Set the timeout to 600 seconds (adjust as needed)
+      poll: 0
+      become: true
+          
